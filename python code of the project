@@ -1,0 +1,147 @@
+import os
+import cv2
+
+# Path to the folder containing the images
+image_folder = 'Dataset/archive (1)/Testing/glioma_tumor'
+
+# Load images
+images = []
+for filename in os.listdir(image_folder):
+    img = cv2.imread(os.path.join(image_folder, filename))
+    if img is not None:
+        images.append(img)
+
+# Apply Gaussian filtering
+def gaussian_filter(image):
+    return cv2.GaussianBlur(image, (5, 5), 0)
+
+# Apply CLAHE for contrast enhancement
+def apply_clahe(image):
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+    return clahe.apply(gray)
+
+# Example preprocessing
+preprocessed_images = [apply_clahe(gaussian_filter(img)) for img in images]
+
+# Apply Canny Edge Detection
+def canny_edge_detection(image):
+    return cv2.Canny(image, 100, 200)
+
+edges = [canny_edge_detection(img) for img in preprocessed_images]
+
+# Apply Otsu's method for segmentation
+def otsu_threshold(image):
+    _, thresh = cv2.threshold(image, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    return thresh
+
+# Apply Watershed algorithm
+def apply_watershed(image):
+    # Assuming the image is preprocessed as grayscale
+    ret, thresh = cv2.threshold(image, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+    # Further processing for watershed algorithm can be added here
+    return thresh
+
+segmented_images = [apply_watershed(otsu_threshold(img)) for img in preprocessed_images]
+
+import numpy as np
+
+# Check the shape of one of the preprocessed images
+if preprocessed_images:
+    print("Shape of first preprocessed image:", preprocessed_images[0].shape)
+else:
+    print("No images were preprocessed. Please check the preprocessing steps.")
+
+import cv2
+import numpy as np
+from sklearn.decomposition import PCA
+
+# Define a function to resize images
+def resize_image(image, target_size=(128, 128)):
+    return cv2.resize(image, target_size)
+
+# Apply preprocessing and resizing, then flatten the images
+def preprocess_and_flatten_images(images, target_size=(128, 128)):
+    flattened_images = []
+    for img in images:
+        resized_img = resize_image(img, target_size)
+        flattened_images.append(resized_img.flatten())  # Flatten the resized image
+    return np.array(flattened_images)
+
+# Example usage with resizing and flattening
+flattened_images = preprocess_and_flatten_images(preprocessed_images)
+
+# Check shape of flattened images array
+print("Shape of flattened images array:", flattened_images.shape)
+
+# Apply PCA
+pca = PCA(n_components=50)
+pca_features = pca.fit_transform(flattened_images)
+print("PCA Features Shape:", pca_features.shape)
+
+import cv2
+import numpy as np
+from skimage.feature import hog
+
+def resize_image(image, target_size=(128, 128)):
+    return cv2.resize(image, target_size)
+
+def compute_hog_features(images, target_size=(128, 128)):
+    hog_features = []
+    for img in images:
+        # Resize image
+        resized_img = resize_image(img, target_size)
+        
+        # Compute HOG for each resized image
+        features = hog(resized_img, pixels_per_cell=(8, 8), cells_per_block=(2, 2), visualize=False, block_norm='L2-Hys')
+        
+        # Ensure that features are appended as a 1D array
+        hog_features.append(features)
+    
+    # Convert list of feature arrays to a 2D NumPy array
+    hog_features = np.array(hog_features)
+    
+    return hog_features
+
+# Example usage
+hog_features = compute_hog_features(preprocessed_images)
+
+# Validate that hog_features is a 2D array
+print("HOG Features shape:", hog_features.shape)
+
+def compute_hog_features(images, target_size=(128, 128)):
+    hog_features = []
+    for idx, img in enumerate(images):
+        # Resize image
+        resized_img = resize_image(img, target_size)
+        
+        # Compute HOG for each resized image
+        features = hog(resized_img, pixels_per_cell=(8, 8), cells_per_block=(2, 2), visualize=False, block_norm='L2-Hys')
+        
+        # Debugging print statement
+        print(f"Image {idx} HOG feature length: {len(features)}")
+        
+        hog_features.append(features)
+    
+    # Convert list of feature arrays to a 2D NumPy array
+    try:
+        hog_features = np.array(hog_features)
+    except ValueError as e:
+        print(f"Error converting to NumPy array: {e}")
+        print("HOG feature lengths:", [len(f) for f in hog_features])
+        raise
+    
+    return hog_features
+
+# Example usage
+hog_features = compute_hog_features(preprocessed_images)
+
+def pad_or_truncate(features, desired_length):
+    if len(features) < desired_length:
+        return np.pad(features, (0, desired_length - len(features)), mode='constant')
+    else:
+        return features[:desired_length]
+
+# Example usage:
+desired_length = max([len(f) for f in hog_features])  # Find the max length
+hog_features_padded = np.array([pad_or_truncate(f, desired_length) for f in hog_features])
